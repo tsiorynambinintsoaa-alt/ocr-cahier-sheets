@@ -21,6 +21,14 @@ Une interface intégrée à Google Sheets : on prend la photo, l'IA lit l'écrit
 
 ---
 
+## 🖥️ L'interface
+
+![Interface OCR Cahier](docs/interface.png)
+
+*Tout se fait dans une seule fenêtre : colonnes, photo, consignes, finition, lancement et réglages.*
+
+---
+
 ## ✨ Fonctionnalités
 
 - **Colonnes configurables** (1 à 30) : Date, Heure, Matricule, Code pièce, Texte, Ignorer
@@ -76,7 +84,7 @@ Google Apps Script (JavaScript) · HTML/CSS · API Gemini · Google Sheets
 
 ## 👤 Auteur
 
-**Nambinintsoa Tsiory Burleigh** — Suivi de production, automatisation, analyse de données et agents IA.
+**Nambinintsoa (Tsiory) Burleigh** — Suivi de production, automatisation, analyse de données et agents IA.
 Antananarivo, Madagascar.
 
 > ⚠️ Code source privé. Démonstration et accès au code sur demande.
