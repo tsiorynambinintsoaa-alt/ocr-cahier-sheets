@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OCR Cahier</title>
+<style>
+  :root {
+    --bleu: #00008A; --bleu-fonce: #000063; --or: #F1C338; --menthe: #ADEBB3;
+    --texte: #202124; --gris: #5f6368; --bord: #e0e3e7;
+    --fond: #f4f5fb; --carte: #ffffff; --fond2: #f8f9fa;
+    --rouge: #d93025; --vert: #1b6b2a;
+    --ombre: 0 1px 2px rgba(60,64,67,.12), 0 1px 6px rgba(60,64,67,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font: 15px/1.4 "Segoe UI", Roboto, Arial, sans-serif; color: var(--texte); background: var(--fond); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+  .entete { flex: none; }
+
+  /* ---------- En-tête ---------- */
+  .entete { background: linear-gradient(135deg, #00008A 0%, #1a1aa6 100%); border-bottom: 4px solid var(--or); color: #fff; padding: 14px 22px; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .entete h1 { font-size: 22px; margin: 0; font-weight: 600; display: flex; align-items: center; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .entete h1 .sep { color: var(--or); margin: 0 .5em; opacity: .8; }
+  .entete h1 .ic { color: var(--or); width: 1.25em; height: 1.25em; }
+  .entete p { margin: 0; font-size: 13px; color: var(--or); font-weight: 600; }
+
+  /* ---------- Disposition une page : traitement à gauche, paramètres + réglages à droite ---------- */
+  .page { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(250px, 1fr) minmax(250px, 1fr); grid-template-rows: minmax(0, 1fr); gap: 14px; padding: 14px 16px; flex: 1; min-height: 0; width: 100%; align-items: stretch; }
+  .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; overflow-y: auto; padding: 0 2px 4px; }
+  #btnTraiter { flex: none; position: sticky; bottom: 0; z-index: 5; }
+  .bloc { flex: none; }
+  .bloc.photo { flex: none; }
+  @media (max-width: 1100px) { .page { grid-template-columns: 1fr 1fr; grid-template-rows: auto; min-height: auto; } .page > .col:first-child { grid-column: 1 / -1; } body { height: auto; overflow: auto; } }
+  @media (max-width: 700px) { .page { grid-template-columns: 1fr; } }
+
+  /* ---------- Cartes ---------- */
+  .bloc { background: var(--carte); border-radius: 12px; box-shadow: var(--ombre); border-top: 3px solid var(--menthe); padding: 14px 18px; }
+  .titre { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 17px; color: var(--bleu); margin-bottom: 10px; }
+  .titre .num { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--or); color: var(--bleu); box-shadow: 0 0 0 2px var(--bleu); font-size: 14px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+  .fac { color: var(--gris); font-weight: 400; font-size: 12.5px; }
+  .aide { color: var(--gris); font-size: 13.5px; }
+  .sous { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--bord); }
+  .sous:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+  .bloc.case { display: flex; gap: 8px; align-items: flex-start; }
+
+  /* ---------- Boutons & champs ---------- */
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--bord); background: #fff; color: var(--texte); padding: 9px 16px; transition: background .15s, box-shadow .15s; }
+  button:hover:not(:disabled) { background: var(--fond2); box-shadow: var(--ombre); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .primaire { background: var(--or); border-color: var(--or); color: var(--bleu); font-weight: 700; padding: 15px 18px; width: 100%; font-size: 18px; border-radius: 10px; box-shadow: 0 3px 10px rgba(241,195,56,.55); }
+  .primaire:hover:not(:disabled) { background: #e5b524; box-shadow: 0 4px 14px rgba(241,195,56,.7); }
+  .primaire:disabled { background: #e7e7ef; border-color: #d5d5e3; color: #8a8aa8; box-shadow: none; }
+  .secondaire { color: var(--bleu); border-color: #8fd69a; background: var(--menthe); font-weight: 600; }
+  .secondaire:hover:not(:disabled) { background: #98e0a0; }
+  input[type=text], input[type=number], input[type=password], select, textarea {
+    font: inherit; padding: 10px 12px; border: 1px solid var(--bord); border-radius: 8px; width: 100%; background: #fff; color: var(--texte);
+  }
+  textarea { resize: vertical; min-height: 56px; }
+  input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--or); outline-offset: 1px; }
+  input[type=checkbox] { accent-color: var(--bleu); margin-top: 3px; }
+  .ligne { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .grille2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* ---------- Colonnes ---------- */
+  #colNombre { width: 84px; }
+  #colsContainer { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 12px; margin-top: 10px; max-height: 24vh; overflow-y: auto; padding-right: 4px; }
+  .colcell { display: flex; align-items: center; gap: 8px; }
+  .col-etq { font-weight: 600; white-space: nowrap; font-size: 14.5px; color: var(--bleu); min-width: 80px; }
+  .colcell select { flex: 1; min-width: 0; padding: 6px 8px; }
+
+  /* ---------- Photo ---------- */
+  #zoneDepot { border: 2px dashed var(--or); border-radius: 12px; background: #fffbea; display: flex; align-items: center; gap: 14px; padding: 16px 18px; cursor: pointer; transition: background .15s, border-color .15s; }
+  #zoneDepot:hover, #zoneDepot.survol { background: #fff3c4; border-color: var(--bleu); }
+  #zoneDepot .icone .ic { width: 38px; height: 38px; color: var(--bleu); margin: 0; stroke-width: 1.6; }
+  #zoneDepot .texte { flex: 1; min-width: 0; }
+  #zoneDepot .consigne { font-size: 14px; color: var(--bleu); font-weight: 600; }
+  #nomFichier { display: block; word-break: break-all; }
+  #apercuBox { display: none; flex: 1; min-height: 200px; flex-direction: column; align-items: center; gap: 6px; border: 1px solid var(--bord); border-radius: 12px; background: var(--carte); box-shadow: var(--ombre); border-top: 3px solid var(--menthe); padding: 10px; text-align: center; }
+  #apercu { display: block; flex: 1; min-height: 0; max-width: 100%; object-fit: contain; border-radius: 6px; }
+
+  /* ---------- Messages & états ---------- */
+  #msg { display: none; border-radius: 10px; padding: 9px 12px; margin: 10px 12px 0; box-shadow: var(--ombre); }
+  #msg.erreur { display: block; background: #fce8e6; color: #a50e0e; border: 1px solid #f5c6c2; border-left: 4px solid var(--rouge); }
+  #msg.info { display: block; background: var(--menthe); color: var(--bleu); border: 1px solid #8fd69a; }
+  #etat { display: none; align-items: center; gap: 10px; padding: 9px 12px; background: var(--carte); border-radius: 10px; box-shadow: var(--ombre); border-left: 4px solid var(--or); color: var(--bleu); }
+  #etat.actif { display: flex; }
+  .rond { width: 18px; height: 18px; border: 3px solid var(--bord); border-top-color: var(--or); border-right-color: var(--bleu); border-radius: 50%; animation: tourne .9s linear infinite; flex: none; }
+  @keyframes tourne { to { transform: rotate(360deg); } }
+
+  /* ---------- Résultat ---------- */
+  #resultat { display: none; border-radius: 12px; padding: 10px 14px; background: var(--carte); box-shadow: var(--ombre); border-left: 5px solid var(--menthe); max-height: 26vh; overflow: auto; flex: none; }
+  #resultat.visible { display: block; }
+  .ok { color: var(--vert); font-weight: 600; }
+  .ko { color: var(--rouge); font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin-top: 6px; font-size: 13px; background: #fff; }
+  th, td { border: 1px solid var(--bord); padding: 4px 7px; text-align: left; vertical-align: top; }
+  th { background: var(--menthe); color: var(--bleu); position: sticky; top: 0; }
+  td.rouge { background: #ffd9d6; }
+
+  .petit { font-size: 12.5px; }
+  a { color: var(--bleu); font-weight: 600; }
+  .pied { color: var(--gris); font-size: 11.5px; padding: 0 4px; }
+
+  /* ---------- Icônes ---------- */
+  .ic { width: 1.15em; height: 1.15em; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.2em; flex: none; margin-right: .4em; }
+  .titre .ic { color: var(--bleu); margin-right: 0; }
+  .pied .ic { width: 1em; height: 1em; color: var(--bleu); }
+  .ok::before, .ko::before { content: ""; display: inline-block; width: 1.1em; height: 1.1em; margin-right: 6px; vertical-align: -0.2em; background: currentColor; -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
+  .ok { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E"); }
+  .ko { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01'/%3E%3C/svg%3E"); }
+  #prefixes { text-transform: uppercase; }
+</style>
+</head>
+<body>
+  <div class="entete">
+    <h1><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg> OCR Cahier <span class="sep">›</span> Sheets</h1>
+    <p>Photographiez le cahier, la feuille se remplit.</p>
+  </div>
+
+  <div id="msg" role="alert"></div>
+
+  <div class="page">
+
+    <!-- ===================== COLONNE GAUCHE : traitement ===================== -->
+    <div class="col">
+
+      <div class="bloc" id="blocColonnes">
+        <div class="titre"><span class="num">1</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></svg>Colonnes de la photo</div>
+        <div class="ligne">
+          <label for="colNombre" class="aide" id="colLabel">Nombre de colonnes :</label>
+          <input type="number" id="colNombre" min="1" max="30" step="1" value="4" inputmode="numeric">
+          <input type="text" id="nomDispo" maxlength="40" placeholder="Nom de la disposition (facultatif)" style="flex:1;min-width:160px;width:auto">
+          <button type="button" id="btnMemoCols"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Mémoriser</button>
+        </div>
+        <div id="colsContainer"></div>
+      </div>
+
+      <div class="bloc photo">
+        <div class="titre"><span class="num">2</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg> Photo du cahier</div>
+        <div id="zoneDepot">
+          <div class="icone"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+          <div class="texte">
+            <div class="consigne">Glissez la photo ici ou touchez pour choisir</div>
+            <span id="nomFichier" class="aide">Aucune image choisie</span>
+          </div>
+          <button type="button" id="btnParcourir" class="secondaire"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg> Parcourir…</button>
+        </div>
+        <input type="file" id="fichier" accept="image/*" hidden>
+      </div>
+
+      <div class="bloc">
+        <div class="titre"><span class="num">3</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Consignes de lecture <span class="fac">(facultatif)</span></div>
+        <textarea id="consignes" rows="2" maxlength="800"
+          placeholder="Consignes particulières pour cette photo"></textarea>
+      </div>
+
+      <button type="button" class="primaire" id="btnTraiter" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 3v4M17 5h4"/></svg> Traiter l’image</button>
+      <div id="etat" aria-live="polite"><div class="rond"></div><div id="etatTexte"></div></div>
+      <div id="resultat" aria-live="polite"></div>
+    </div>
+
+    <!-- ===================== COLONNE DROITE : paramètres + réglages ===================== -->
+    <div class="col">
+
+      <div class="bloc">
+        <div class="sous" id="blocFinition">
+          <div class="titre"><span class="num">4</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg> Finition atelier</div>
+          <select id="finition" aria-label="Finition atelier"></select>
+          <div class="aide" id="finAide"></div>
+        </div>
+
+        <div class="sous">
+          <div class="titre"><span class="num">5</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18"/></svg> Nombre de lignes <span class="fac">(facultatif)</span></div>
+          <input type="number" id="nbLignes" min="1" step="1" inputmode="numeric" placeholder="Auto : toutes les lignes visibles">
+        </div>
+
+        <div class="sous" id="blocHeures">
+          <div class="titre"><span class="num">6</span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Plage d’heures acceptée</div>
+          <div class="grille2">
+            <div><label class="aide" for="hMin">Minimale</label><input type="text" id="hMin" value="7:30" inputmode="numeric" placeholder="7:30"></div>
+            <div><label class="aide" for="hMax">Maximale</label><input type="text" id="hMax" value="16:35" inputmode="numeric" placeholder="16:35"></div>
+          </div>
+        </div>
+
+        <div class="sous case" id="blocReporter" style="display:flex;gap:8px;align-items:flex-start">
+          <input type="checkbox" id="reporter" checked>
+          <label for="reporter" class="petit">Reporter la date sur les lignes suivantes quand elle n’est écrite qu’une fois en haut de la page</label>
+        </div>
+      </div>
+
+      <div id="apercuBox">
+        <img id="apercu" alt="Aperçu de la photo">
+        <button type="button" id="btnPivoter" disabled title="Pivoter l’image de 90°"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg> Pivoter</button>
+      </div>
+    </div>
+
+    <!-- ===================== COLONNE 3 : réglages ===================== -->
+    <div class="col">
+
+      <div class="bloc">
+        <div class="titre"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg> Réglages</div>
+
+        <div class="sous">
+          <label class="aide" for="dispo"><b>Disposition des colonnes</b> <span class="fac">(facultatif)</span></label>
+          <div class="ligne" style="flex-wrap:nowrap">
+            <select id="dispo" style="flex:1;min-width:0"></select>
+            <button type="button" id="btnSuppr" title="Supprimer la disposition choisie">Supprimer</button>
+          </div>
+        </div>
+
+        <div class="sous">
+          <label class="aide" for="cle"><b>Clé d’accès</b></label>
+          <input type="password" id="cle" autocomplete="off" placeholder="Collez la clé ici">
+          <div class="aide" id="cleEtat" style="margin-top:3px"></div>
+        </div>
+
+        <div class="sous">
+          <label class="aide" for="prefixes"><b>Codes pièce possibles</b></label>
+          <input type="text" id="prefixes" autocomplete="off" autocapitalize="characters" placeholder="TS, HS, HNB">
+        </div>
+
+        <div class="sous">
+          <div>
+            <label class="aide" for="feuilleMat"><b>Feuille des matricules</b></label>
+            <select id="feuilleMat"></select>
+          </div>
+          <div style="margin-top:12px">
+            <label class="aide" for="feuilleRes"><b>Feuille du résultat</b></label>
+            <input type="text" id="feuilleRes" list="listeFeuilles" placeholder="Résultat">
+            <datalist id="listeFeuilles"></datalist>
+          </div>
+        </div>
+
+        <div class="ligne" style="margin-top:12px">
+          <button type="button" id="btnSauver" class="secondaire"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg> Enregistrer</button>
+          <button type="button" id="btnTester"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Tester la connexion</button>
+        </div>
+        <div id="testRes" class="petit" style="margin-top:6px"></div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+  var fichier = null, bitmap = null, rotation = 0, enCours = false, maxLignes = 150, timer = null;
+  var champsDisponibles = [], doublonsMax = {}, maxColonnes = 30, dispositions = {};
+
+  function $(id) { return document.getElementById(id); }
+
+  function montrerMsg(texte, type) {
+    var m = $('msg');
+    m.textContent = texte;
+    m.className = type;
+  }
+  function cacherMsg() { $('msg').className = ''; $('msg').textContent = ''; }
+
+  function messageErreur(e) {
+    var m = (e && e.message) ? e.message : String(e);
+    return m.replace(/^Error:\s*/, '');
+  }
+
+  // ---------- Initialisation ----------
+  google.script.run
+    .withSuccessHandler(init)
+    .withFailureHandler(function (e) { montrerMsg('Chargement impossible : ' + messageErreur(e), 'erreur'); })
+    .getInitData();
+
+  function init(d) {
+    maxLignes = d.maxLignes || 150;
+    $('nbLignes').max = maxLignes;
+    var sel = $('feuilleMat'), dl = $('listeFeuilles');
+    sel.innerHTML = ''; dl.innerHTML = '';
+    d.feuilles.forEach(function (nom) {
+      var o = document.createElement('option'); o.value = nom; o.textContent = nom; sel.appendChild(o);
+      var o2 = document.createElement('option'); o2.value = nom; dl.appendChild(o2);
+    });
+    var r = d.reglages;
+    if (d.feuilles.indexOf(r.feuilleMatricules) >= 0) sel.value = r.feuilleMatricules;
+    else sel.selectedIndex = -1;
+    $('feuilleRes').value = r.feuilleResultat;
+    $('hMin').value = r.heureMin;
+    $('hMax').value = r.heureMax;
+    $('reporter').checked = !!r.reporterDate;
+    $('consignes').value = r.consignes || '';
+    $('prefixes').value = (r.prefixesCode || []).join(', ');
+    majEtatCle(r.cleDefinie);
+    dispositions = r.dispositions || {};
+    remplirDispositions('');
+    remplirFinitions(d.finitions || [], r.finition);
+    initColonnes(d);
+    if (!r.cleDefinie) {
+      montrerMsg('Première utilisation : saisissez votre clé d’accès dans Réglages (à droite), puis enregistrez.', 'info');
+    } else if (d.feuilles.indexOf(r.feuilleMatricules) < 0) {
+      montrerMsg('Choisissez la feuille qui contient la liste des matricules dans Réglages.', 'info');
+    }
+    majBouton();
+  }
+
+  function majEtatCle(definie) {
+    $('cleEtat').textContent = definie ? 'Clé enregistrée.' : 'Aucune clé enregistrée.';
+  }
+
+  // ---------- Finition : liste déroulante (valeurs uniques de la colonne B) ----------
+  var AIDE_FINITION = '';
+
+  function libelleFinition(v) { return /^\d+$/.test(v) ? 'Finition ' + v : v; }
+
+  function remplirFinitions(liste, choix) {
+    var s = $('finition');
+    s.innerHTML = '';
+    var o0 = document.createElement('option');
+    o0.value = ''; o0.textContent = liste.length ? '— Choisir la finition —' : '— Aucune finition trouvée —';
+    s.appendChild(o0);
+    liste.forEach(function (v) {
+      var o = document.createElement('option');
+      o.value = v; o.textContent = libelleFinition(v);
+      s.appendChild(o);
+    });
+    s.value = (choix && liste.indexOf(choix) >= 0) ? choix : '';
+    $('finAide').textContent = AIDE_FINITION;
+    majBouton();
+  }
+
+  function chargerFinitions(nomFeuille) {
+    if (!nomFeuille) { remplirFinitions([], ''); return; }
+    var courant = finitionChoisie();
+    google.script.run
+      .withSuccessHandler(function (liste) { remplirFinitions(liste, courant); })
+      .withFailureHandler(function (e) { remplirFinitions([], ''); $('finAide').textContent = messageErreur(e); })
+      .getFinitions(nomFeuille);
+  }
+  $('feuilleMat').addEventListener('change', function () { chargerFinitions(this.value); });
+  $('finition').addEventListener('change', majBouton);
+
+  function finitionChoisie() { return $('finition').value || ''; }
+
+  // ---------- Colonnes définies à l'avance ----------
+  function initColonnes(d) {
+    champsDisponibles = d.champsDisponibles || [];
+    doublonsMax = d.doublonsMax || {};
+    maxColonnes = d.maxColonnes || 6;
+    $('colNombre').max = maxColonnes;
+    
+    var cols = (d.reglages.colonnes && d.reglages.colonnes.length)
+      ? d.reglages.colonnes : ['date', 'heure', 'matricule', 'code'];
+    $('colNombre').value = cols.length;
+    construireSelecteurs(cols);
+  }
+
+  function construireSelecteurs(colonnes) {
+    var nb = parseInt($('colNombre').value, 10) || 1;
+    if (nb < 1) nb = 1;
+    if (nb > maxColonnes) nb = maxColonnes;
+    var cont = $('colsContainer');
+    cont.innerHTML = '';
+    for (var i = 0; i < nb; i++) {
+      var etq = document.createElement('label');
+      etq.className = 'col-etq';
+      etq.textContent = 'Colonne ' + (i + 1) + ' :';
+      etq.setAttribute('for', 'colSel' + i);
+      var s = document.createElement('select');
+      s.id = 'colSel' + i;
+      champsDisponibles.forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = c.id; o.textContent = c.label;
+        s.appendChild(o);
+      });
+      s.value = (colonnes && colonnes[i]) || 'ignorer';
+      s.addEventListener('change', majSelonColonnes);
+      var cell = document.createElement('div');
+      cell.className = 'colcell';
+      cell.appendChild(etq);
+      cell.appendChild(s);
+      cont.appendChild(cell);
+    }
+    majSelonColonnes();
+  }
+
+  function lireColonnes() {
+    var arr = [];
+    Array.prototype.forEach.call(document.querySelectorAll('#colsContainer select'), function (s) {
+      arr.push(s.value);
+    });
+    return arr;
+  }
+
+  function libelleChamp(id) {
+    for (var i = 0; i < champsDisponibles.length; i++) {
+      if (champsDisponibles[i].id === id) return champsDisponibles[i].label;
+    }
+    return id;
+  }
+
+  function maxFois(id) {
+    if (id === 'texte' || id === 'ignorer') return maxColonnes;
+    return doublonsMax[id] || 1;
+  }
+
+  function erreurColonnes(cols) {
+    if (!cols.length) return 'Définissez au moins une colonne.';
+    var compte = {}, utile = false;
+    for (var i = 0; i < cols.length; i++) {
+      var c = cols[i];
+      if (c !== 'ignorer') utile = true;
+      compte[c] = (compte[c] || 0) + 1;
+      var max = maxFois(c);
+      if (compte[c] > max) {
+        return 'La colonne « ' + libelleChamp(c) + ' » est choisie trop de fois (maximum ' + max + ').';
+      }
+    }
+    if (!utile) return 'Au moins une colonne doit être différente de « Ignorer ».';
+    return '';
+  }
+
+  function lirePrefixes() {
+    var brut = $('prefixes').value.toUpperCase().split(/[\s,;]+/).filter(Boolean);
+    var vus = {}, out = [];
+    for (var i = 0; i < brut.length; i++) {
+      if (!/^[A-Z]{1,4}$/.test(brut[i])) return null;
+      if (!vus[brut[i]]) { vus[brut[i]] = 1; out.push(brut[i]); }
+    }
+    return out;
+  }
+
+  /** Affiche/masque Finition, Heures et Reporter selon les colonnes définies. */
+  function majSelonColonnes() {
+    var cols = lireColonnes();
+    $('blocFinition').style.display = cols.indexOf('matricule') >= 0 ? '' : 'none';
+    $('blocHeures').style.display = cols.indexOf('heure') >= 0 ? '' : 'none';
+    $('blocReporter').style.display = cols.indexOf('date') >= 0 ? 'flex' : 'none';
+    majBouton();
+  }
+
+  $('colNombre').addEventListener('input', function () { construireSelecteurs(lireColonnes()); });
+  $('colNombre').addEventListener('change', function () { construireSelecteurs(lireColonnes()); });
+
+  $('btnMemoCols').addEventListener('click', function () {
+    var cols = lireColonnes();
+    var ec = erreurColonnes(cols);
+    if (ec) { montrerMsg(ec, 'erreur'); return; }
+    cacherMsg();
+    var nom = $('nomDispo').value.trim();
+    $('btnMemoCols').disabled = true;
+    google.script.run
+      .withSuccessHandler(function (r) {
+        $('btnMemoCols').disabled = false;
+        dispositions = r.dispositions || {};
+        remplirDispositions(nom);
+        montrerMsg(nom ? 'Disposition « ' + nom + ' » mémorisée.' : 'Disposition mémorisée.', 'info');
+      })
+      .withFailureHandler(function (e) {
+        $('btnMemoCols').disabled = false;
+        montrerMsg(messageErreur(e), 'erreur');
+      })
+      .saveSettings({ colonnes: cols, nomDisposition: nom });
+  });
+
+  // ---------- Dispositions mémorisées (liste déroulante dans Réglages) ----------
+  function remplirDispositions(choix) {
+    var sel = $('dispo');
+    sel.innerHTML = '';
+    var o0 = document.createElement('option');
+    o0.value = ''; o0.textContent = '— Aucune —';
+    sel.appendChild(o0);
+    Object.keys(dispositions).sort().forEach(function (nom) {
+      var o = document.createElement('option');
+      o.value = nom; o.textContent = nom;
+      sel.appendChild(o);
+    });
+    sel.value = (choix && dispositions[choix]) ? choix : '';
+  }
+
+  $('dispo').addEventListener('change', function () {
+    var nom = this.value;
+    if (!nom || !dispositions[nom]) return;
+    var cols = dispositions[nom];
+    $('colNombre').value = cols.length;
+    construireSelecteurs(cols);
+    $('nomDispo').value = nom;
+  });
+
+  $('btnSuppr').addEventListener('click', function () {
+    var nom = $('dispo').value;
+    if (!nom) return;
+    cacherMsg();
+    $('btnSuppr').disabled = true;
+    google.script.run
+      .withSuccessHandler(function (r) {
+        $('btnSuppr').disabled = false;
+        dispositions = r.dispositions || {};
+        remplirDispositions('');
+        if ($('nomDispo').value.trim() === nom) $('nomDispo').value = '';
+        montrerMsg('Disposition supprimée.', 'info');
+      })
+      .withFailureHandler(function (e) { $('btnSuppr').disabled = false; montrerMsg(messageErreur(e), 'erreur'); })
+      .saveSettings({ supprimerDisposition: nom });
+  });
+
+  // ---------- Image ----------
+  $('btnParcourir').addEventListener('click', function (e) { e.stopPropagation(); $('fichier').click(); });
+  $('btnPivoter').addEventListener('click', function () {
+    rotation = (rotation + 90) % 360;
+    afficherApercu();
+  });
+
+  $('zoneDepot').addEventListener('click', function (e) {
+    if (enCours || (e.target.closest && e.target.closest('button'))) return;
+    $('fichier').click();
+  });
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    $('zoneDepot').addEventListener(ev, function (e) {
+      e.preventDefault();
+      if (!enCours) $('zoneDepot').classList.add('survol');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    $('zoneDepot').addEventListener(ev, function (e) {
+      e.preventDefault();
+      $('zoneDepot').classList.remove('survol');
+    });
+  });
+  $('zoneDepot').addEventListener('drop', function (e) {
+    if (enCours) return;
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) prendreFichier(f);
+  });
+
+  $('fichier').addEventListener('change', function () {
+    var f = this.files && this.files[0];
+    if (f) prendreFichier(f);
+  });
+
+  function prendreFichier(f) {
+    if (!/^image\//.test(f.type) && !/\.(jpe?g|png|webp|bmp)$/i.test(f.name)) {
+      montrerMsg('Ce fichier n’est pas une image (JPG, PNG, WebP).', 'erreur');
+      return;
+    }
+    cacherMsg();
+    fichier = f; rotation = 0; bitmap = null;
+    $('nomFichier').textContent = f.name;
+    chargerBitmap(f).then(function (b) {
+      bitmap = b;
+      $('btnPivoter').disabled = false;
+      afficherApercu();
+      majBouton();
+    }).catch(function () {
+      fichier = null; bitmap = null;
+      $('nomFichier').textContent = 'Aucune image choisie';
+      $('apercuBox').style.display = 'none';
+      $('btnPivoter').disabled = true;
+      montrerMsg('Image illisible. Utilisez une photo JPG ou PNG.', 'erreur');
+      majBouton();
+    });
+  }
+
+  function chargerBitmap(f) {
+    if (window.createImageBitmap) {
+      return createImageBitmap(f).catch(function () { return chargerViaImg(f); });
+    }
+    return chargerViaImg(f);
+  }
+  function chargerViaImg(f) {
+    return new Promise(function (ok, ko) {
+      var url = URL.createObjectURL(f), img = new Image();
+      img.onload = function () { ok(img); };
+      img.onerror = function () { ko(new Error('illisible')); };
+      img.src = url;
+    });
+  }
+
+  function dessiner(maxDim) {
+    var w = bitmap.width, h = bitmap.height;
+    var quart = (rotation === 90 || rotation === 270);
+    var W = quart ? h : w, H = quart ? w : h;
+    var k = Math.min(1, maxDim / Math.max(W, H));
+    var c = document.createElement('canvas');
+    c.width = Math.round(W * k); c.height = Math.round(H * k);
+    var g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    g.translate(c.width / 2, c.height / 2);
+    g.rotate(rotation * Math.PI / 180);
+    g.scale(k, k);
+    g.drawImage(bitmap, -w / 2, -h / 2);
+    return c;
+  }
+
+  function afficherApercu() {
+    if (!bitmap) return;
+    $('apercu').src = dessiner(600).toDataURL('image/jpeg', 0.8);
+    $('apercuBox').style.display = 'flex';
+  }
+
+  function imageEnBase64() {
+    var essais = [[2400, 0.9], [1800, 0.85], [1400, 0.8]];
+    for (var i = 0; i < essais.length; i++) {
+      var url = dessiner(essais[i][0]).toDataURL('image/jpeg', essais[i][1]);
+      var b64 = url.split(',')[1];
+      if (b64.length < 7000000 || i === essais.length - 1) return b64;
+    }
+  }
+
+  // ---------- Formulaire ----------
+  function minutes(t) {
+    var m = String(t || '').trim().toLowerCase().match(/^(\d{1,2})\s*[h:.]\s*(\d{2})$/);
+    if (!m) return null;
+    var h = +m[1], mi = +m[2];
+    return (h > 23 || mi > 59) ? null : h * 60 + mi;
+  }
+  function problemeFormulaire() {
+    if (!bitmap) return 'Choisissez une image.';
+    var cols = lireColonnes();
+    var ec = erreurColonnes(cols);
+    if (ec) return ec;
+    if (cols.indexOf('matricule') >= 0 && !finitionChoisie()) return 'Choisissez la finition atelier dans la liste.';
+    if (cols.indexOf('code') >= 0 && lirePrefixes() === null) return 'Codes pièce possibles invalides (Réglages) : 1 à 4 lettres, séparées par des virgules.';
+    var brutN = $('nbLignes').value.trim();
+    if (brutN !== '') {
+      var n = parseInt(brutN, 10);
+      if (!(n >= 1 && n <= maxLignes) || String(n) !== brutN) return 'Nombre de lignes invalide (1 à ' + maxLignes + ', ou laissez vide).';
+    }
+    if (cols.indexOf('heure') >= 0) {
+      var a = minutes($('hMin').value), b = minutes($('hMax').value);
+      if (a === null || b === null) return 'Heures invalides (format 7:30).';
+      if (a >= b) return 'L’heure minimale doit être avant l’heure maximale.';
+    }
+    return '';
+  }
+  function majBouton() {
+    $('btnTraiter').disabled = enCours || !!problemeFormulaire();
+  }
+  ['nbLignes', 'hMin', 'hMax'].forEach(function (id) { $(id).addEventListener('input', majBouton); });
+
+  // ---------- Traitement ----------
+  $('btnTraiter').addEventListener('click', function () {
+    var p = problemeFormulaire();
+    if (p) { montrerMsg(p, 'erreur'); return; }
+    cacherMsg();
+    $('resultat').className = ''; $('resultat').innerHTML = '';
+    var payload;
+    try {
+      payload = {
+        image: imageEnBase64(), mime: 'image/jpeg',
+        colonnes: lireColonnes(),
+        consignes: $('consignes').value,
+        finition: finitionChoisie(),
+        nbLignes: $('nbLignes').value.trim() === '' ? '' : parseInt($('nbLignes').value, 10),
+        heureMin: $('hMin').value.trim(), heureMax: $('hMax').value.trim(),
+        reporterDate: $('reporter').checked,
+        prefixesCode: lirePrefixes() || []
+      };
+    } catch (e) {
+      montrerMsg('Impossible de préparer l’image : ' + messageErreur(e), 'erreur');
+      return;
+    }
+    basculer(true);
+    google.script.run
+      .withSuccessHandler(function (r) { basculer(false); afficherResultat(r); })
+      .withFailureHandler(function (e) { basculer(false); montrerMsg(messageErreur(e), 'erreur'); })
+      .traiterImage(payload);
+  });
+
+  function basculer(actif) {
+    enCours = actif;
+    var t0 = Date.now();
+    clearInterval(timer);
+    $('etat').className = actif ? 'actif' : '';
+    if (actif) {
+      var maj = function () {
+        var s = Math.round((Date.now() - t0) / 1000);
+        $('etatTexte').textContent = 'Lecture de la photo… ' + s + ' s (compter 20 à 90 s)';
+      };
+      maj(); timer = setInterval(maj, 1000);
+    }
+    ['btnParcourir', 'btnPivoter', 'nbLignes', 'hMin', 'hMax', 'reporter', 'colNombre', 'btnMemoCols', 'prefixes', 'consignes', 'finition', 'nomDispo', 'dispo', 'btnSuppr'].forEach(function (id) {
+      $(id).disabled = actif || (id === 'btnPivoter' && !bitmap);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#colsContainer select'), function (s) { s.disabled = actif; });
+    majBouton();
+  }
+
+  function el(tag, texte, cls) {
+    var e = document.createElement(tag);
+    if (texte != null) e.textContent = texte;
+    if (cls) e.className = cls;
+    return e;
+  }
+
+  function afficherResultat(r) {
+    var box = $('resultat');
+    box.innerHTML = '';
+    box.appendChild(el('div', r.nbLignes + ' lignes écrites dans « ' + r.feuille + ' » (lignes ' + r.debut + ' à ' + r.fin + ').', 'ok'));
+    if (r.finition) box.appendChild(el('div', libelleFinition(r.finition), 'aide'));
+    if (r.nbVides) box.appendChild(el('div', r.nbVides + ' ligne(s) vide(s) laissée(s) vide(s).', 'aide'));
+    if (r.nbFourni && r.videsFin > 0) {
+      box.appendChild(el('div', 'Les ' + r.videsFin + ' dernière(s) ligne(s) sont vides : le nombre de lignes saisi est peut-être trop grand.', 'ko'));
+    }
+    if (!r.nbRouges) {
+      box.appendChild(el('div', 'Aucune cellule en rouge.', 'ok'));
+    } else {
+      box.appendChild(el('div', r.nbRouges + ' cellule(s) en rouge à vérifier :', 'ko'));
+      var t = document.createElement('table');
+      var thead = document.createElement('tr');
+      ['Ligne', 'Colonne', 'Lu', 'Pourquoi'].forEach(function (h) { thead.appendChild(el('th', h)); });
+      t.appendChild(thead);
+      r.details.forEach(function (d) {
+        var tr = document.createElement('tr');
+        tr.appendChild(el('td', d.ligne));
+        tr.appendChild(el('td', d.champ));
+        tr.appendChild(el('td', d.lu || '(vide)', 'rouge'));
+        tr.appendChild(el('td', d.raison));
+        t.appendChild(tr);
+      });
+      box.appendChild(t);
+      if (r.nbRouges > r.details.length) {
+        box.appendChild(el('div', '… et ' + (r.nbRouges - r.details.length) + ' autres (voir la feuille).', 'aide'));
+      }
+    }
+    box.className = 'visible';
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // ---------- Réglages ----------
+  $('btnSauver').addEventListener('click', function () {
+    cacherMsg();
+    if (lirePrefixes() === null) { montrerMsg('Codes pièce possibles invalides : 1 à 4 lettres, séparées par des virgules (ex. TS, HS, HNB).', 'erreur'); return; }
+    $('btnSauver').disabled = true;
+    google.script.run
+      .withSuccessHandler(function (r) {
+        $('btnSauver').disabled = false;
+        $('cle').value = '';
+        $('prefixes').value = (r.prefixesCode || []).join(', ');
+        majEtatCle(r.cleDefinie);
+        montrerMsg('Réglages enregistrés.', 'info');
+        chargerFinitions($('feuilleMat').value);
+      })
+      .withFailureHandler(function (e) { $('btnSauver').disabled = false; montrerMsg(messageErreur(e), 'erreur'); })
+      .saveSettings({ cle: $('cle').value, feuilleMatricules: $('feuilleMat').value, feuilleResultat: $('feuilleRes').value, prefixesCode: $('prefixes').value });
+  });
+
+  $('btnTester').addEventListener('click', function () {
+    var z = $('testRes');
+    z.textContent = 'Test en cours…';
+    $('btnTester').disabled = true;
+    google.script.run
+      .withSuccessHandler(function (liste) {
+        $('btnTester').disabled = false;
+        z.innerHTML = '';
+        liste.forEach(function (x) {
+          z.appendChild(el('div', 'Connexion : ' + x.statut, x.ok ? 'ok' : 'ko'));
+        });
+      })
+      .withFailureHandler(function (e) { $('btnTester').disabled = false; z.textContent = ''; montrerMsg(messageErreur(e), 'erreur'); })
+      .testerConnexion();
+  });
+</script>
+</body>
+</html>
