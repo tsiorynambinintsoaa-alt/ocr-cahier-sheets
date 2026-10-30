@@ -76,7 +76,7 @@ Google Apps Script (JavaScript) · HTML/CSS · API Gemini · Google Sheets
 
 ## 👤 Auteur
 
-**Nambinintsoa (Tsiory) Burleigh** — Suivi de production, automatisation, analyse de données et agents IA.
+**Nambinintsoa Tsiory Burleigh** — Suivi de production, automatisation, analyse de données et agents IA.
 Antananarivo, Madagascar.
 
 > ⚠️ Code source privé. Démonstration et accès au code sur demande.
